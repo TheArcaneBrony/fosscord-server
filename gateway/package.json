@@ -15,27 +15,26 @@
 	"author": "Fosscord",
 	"license": "ISC",
 	"devDependencies": {
-		"@types/amqplib": "^0.8.1",
-		"@types/jsonwebtoken": "^8.5.0",
-		"@types/node": "^14.17.9",
-		"@types/node-fetch": "^2.5.12",
-		"@types/ws": "^7.4.0",
+		"@types/amqplib": "^0.8.2",
+		"@types/jsonwebtoken": "^8.5.6",
+		"@types/node": "^17.0.4",
+		"@types/ws": "^8.2.2",
 		"@zerollup/ts-transform-paths": "^1.7.18",
-		"ts-node-dev": "^1.1.6",
-		"ts-patch": "^1.4.4",
-		"typescript": "^4.2.3"
+		"ts-node-dev": "^1.1.8",
+		"ts-patch": "^2.0.1",
+		"typescript": "^4.4.2"
 	},
 	"dependencies": {
 		"@fosscord/util": "file:../util",
 		"amqplib": "^0.8.0",
-		"dotenv": "^8.2.0",
+		"dotenv": "^10.0.0",
 		"jsonwebtoken": "^8.5.1",
-		"lambert-server": "^1.2.11",
+		"lambert-server": "^1.2.12",
 		"missing-native-js-functions": "^1.2.18",
-		"node-fetch": "^2.6.1",
+		"node-fetch": "^3.1.0",
 		"proxy-agent": "^5.0.0",
-		"typeorm": "^0.2.37",
-		"ws": "^7.4.2"
+		"typeorm": "^0.2.41",
+		"ws": "^8.4.0"
 	},
 	"optionalDependencies": {
 		"@yukikaze-bot/erlpack": "^1.0.1"

@@ -1,0 +1,254 @@
+diff --git a/node_modules/ajv/.vscode/settings.json b/node_modules/ajv/.vscode/settings.json
+new file mode 100644
+index 0000000..2f086d2
+--- /dev/null
++++ b/node_modules/ajv/.vscode/settings.json
+@@ -0,0 +1,6 @@
++{
++    "awooga.originalColorCustomizations": {
++        "editor.background": "#400000"
++    },
++    "workbench.colorCustomizations": {}
++}
+\ No newline at end of file
+diff --git a/node_modules/ajv/lib/compile/jtd/parse.ts b/node_modules/ajv/lib/compile/jtd/parse.ts
+index cd2611e..4cea0c1 100644
+--- a/node_modules/ajv/lib/compile/jtd/parse.ts
++++ b/node_modules/ajv/lib/compile/jtd/parse.ts
+@@ -272,6 +272,9 @@ function parseType(cxt: ParseCxt): void {
+       gen.if(fail, () => parsingError(cxt, str`invalid timestamp`))
+       break
+     }
++	case "bigint":
++		parseBigInt(ctx)
++		break
+     case "float32":
+     case "float64":
+       parseNumber(cxt)
+@@ -325,6 +328,15 @@ function parseNumber(cxt: ParseCxt, maxDigits?: number): void {
+     () => parseWith(cxt, parseJsonNumber, maxDigits)
+   )
+ }
++function parseBigInt(cxt: ParseCxt, maxDigits?: number) {
++  const {gen} = cxt
++  skipWhitespace(cxt)
++  gen.if(
++    _`"-0123456789".indexOf(${jsonSlice(1)}) < 0`,
++    () => jsonSyntaxError(cxt),
++    () => parseWith(cxt, parseJsonBigInt, maxDigits)
++  )
++}
+ 
+ function parseBooleanToken(bool: boolean, fail: GenParse): GenParse {
+   return (cxt) => {
+diff --git a/node_modules/ajv/lib/compile/rules.ts b/node_modules/ajv/lib/compile/rules.ts
+index ea65074..2917bb4 100644
+--- a/node_modules/ajv/lib/compile/rules.ts
++++ b/node_modules/ajv/lib/compile/rules.ts
+@@ -1,6 +1,6 @@
+ import type {AddedKeywordDefinition} from "../types"
+ 
+-const _jsonTypes = ["string", "number", "integer", "boolean", "null", "object", "array"] as const
++const _jsonTypes = ["string", "number", "integer", "boolean", "null", "object", "array", "bigint"] as const
+ 
+ export type JSONType = typeof _jsonTypes[number]
+ 
+@@ -34,15 +34,16 @@ export interface Rule {
+ }
+ 
+ export function getRules(): ValidationRules {
+-  const groups: Record<"number" | "string" | "array" | "object", RuleGroup> = {
++  const groups: Record<"number" | "string" | "array" | "object" | "bigint", RuleGroup> = {
+     number: {type: "number", rules: []},
+     string: {type: "string", rules: []},
+     array: {type: "array", rules: []},
+     object: {type: "object", rules: []},
++	bigint: {type: "bigint", rules: []}
+   }
+   return {
+-    types: {...groups, integer: true, boolean: true, null: true},
+-    rules: [{rules: []}, groups.number, groups.string, groups.array, groups.object],
++    types: {...groups, integer: true, boolean: true, null: true, bigint: true},
++    rules: [{rules: []}, groups.number, groups.string, groups.array, groups.object, groups.bigint],
+     post: {rules: []},
+     all: {},
+     keywords: {},
+diff --git a/node_modules/ajv/lib/compile/validate/dataType.ts b/node_modules/ajv/lib/compile/validate/dataType.ts
+index b315c2c..8b4457a 100644
+--- a/node_modules/ajv/lib/compile/validate/dataType.ts
++++ b/node_modules/ajv/lib/compile/validate/dataType.ts
+@@ -52,7 +52,7 @@ export function coerceAndCheckDataType(it: SchemaObjCxt, types: JSONType[]): boo
+   return checkTypes
+ }
+ 
+-const COERCIBLE: Set<JSONType> = new Set(["string", "number", "integer", "boolean", "null"])
++const COERCIBLE: Set<JSONType> = new Set(["string", "number", "integer", "boolean", "null", "bigint"])
+ function coerceToTypes(types: JSONType[], coerceTypes?: boolean | "array"): JSONType[] {
+   return coerceTypes
+     ? types.filter((t) => COERCIBLE.has(t) || (coerceTypes === "array" && t === "array"))
+@@ -88,6 +88,14 @@ function coerceData(it: SchemaObjCxt, types: JSONType[], coerceTo: JSONType[]):
+ 
+   function coerceSpecificType(t: string): void {
+     switch (t) {
++		case "bigint":
++        gen
++          .elseIf(
++            _`${dataType} == "boolean" || ${data} === null
++              || (${dataType} == "string" && ${data} && ${data} == BigInt(${data}))`
++          )
++          .assign(coerced, _`BigInt(${data})`)
++        return
+       case "string":
+         gen
+           .elseIf(_`${dataType} == "number" || ${dataType} == "boolean"`)
+@@ -164,6 +172,9 @@ export function checkDataType(
+     case "number":
+       cond = numCond()
+       break
++    case "bigint":
++      cond = _`typeof ${data} == "bigint" && isFinite(${data})`
++      break
+     default:
+       return _`typeof ${data} ${EQ} ${dataType}`
+   }
+diff --git a/node_modules/ajv/lib/refs/json-schema-2020-12/meta/validation.json b/node_modules/ajv/lib/refs/json-schema-2020-12/meta/validation.json
+index e0ae13d..dc4b8fe 100644
+--- a/node_modules/ajv/lib/refs/json-schema-2020-12/meta/validation.json
++++ b/node_modules/ajv/lib/refs/json-schema-2020-12/meta/validation.json
+@@ -78,7 +78,7 @@
+       "default": 0
+     },
+     "simpleTypes": {
+-      "enum": ["array", "boolean", "integer", "null", "number", "object", "string"]
++      "enum": ["array", "boolean", "integer", "null", "number", "object", "string", "bigint"]
+     },
+     "stringArray": {
+       "type": "array",
+diff --git a/node_modules/ajv/lib/refs/json-schema-draft-06.json b/node_modules/ajv/lib/refs/json-schema-draft-06.json
+index 5410064..69e79d2 100644
+--- a/node_modules/ajv/lib/refs/json-schema-draft-06.json
++++ b/node_modules/ajv/lib/refs/json-schema-draft-06.json
+@@ -16,7 +16,7 @@
+       "allOf": [{"$ref": "#/definitions/nonNegativeInteger"}, {"default": 0}]
+     },
+     "simpleTypes": {
+-      "enum": ["array", "boolean", "integer", "null", "number", "object", "string"]
++      "enum": ["array", "boolean", "integer", "null", "number", "object", "string", "bigint"]
+     },
+     "stringArray": {
+       "type": "array",
+diff --git a/node_modules/ajv/lib/refs/json-schema-draft-07.json b/node_modules/ajv/lib/refs/json-schema-draft-07.json
+index 6a74851..ff177a8 100644
+--- a/node_modules/ajv/lib/refs/json-schema-draft-07.json
++++ b/node_modules/ajv/lib/refs/json-schema-draft-07.json
+@@ -16,7 +16,7 @@
+       "allOf": [{"$ref": "#/definitions/nonNegativeInteger"}, {"default": 0}]
+     },
+     "simpleTypes": {
+-      "enum": ["array", "boolean", "integer", "null", "number", "object", "string"]
++      "enum": ["array", "boolean", "integer", "null", "number", "object", "string", "bigint"]
+     },
+     "stringArray": {
+       "type": "array",
+diff --git a/node_modules/ajv/lib/refs/jtd-schema.ts b/node_modules/ajv/lib/refs/jtd-schema.ts
+index c019812..2b0a5a0 100644
+--- a/node_modules/ajv/lib/refs/jtd-schema.ts
++++ b/node_modules/ajv/lib/refs/jtd-schema.ts
+@@ -42,6 +42,7 @@ const typeForm: MetaSchema = (root) => ({
+         "uint16",
+         "int32",
+         "uint32",
++		"bigint",
+       ],
+     },
+   },
+diff --git a/node_modules/ajv/lib/runtime/parseJson.ts b/node_modules/ajv/lib/runtime/parseJson.ts
+index 92579af..0893571 100644
+--- a/node_modules/ajv/lib/runtime/parseJson.ts
++++ b/node_modules/ajv/lib/runtime/parseJson.ts
+@@ -95,6 +95,71 @@ parseJsonNumber.message = undefined as string | undefined
+ parseJsonNumber.position = 0 as number
+ parseJsonNumber.code = 'require("ajv/dist/runtime/parseJson").parseJsonNumber'
+ 
++export function parseJsonBigInt(s: string, pos: number, maxDigits?: number): bigint | undefined {
++	let numStr = ""
++	let c: string
++	parseJsonNumber.message = undefined
++	if (s[pos] === "-") {
++	  numStr += "-"
++	  pos++
++	}
++	if (s[pos] === "0") {
++	  numStr += "0"
++	  pos++
++	} else {
++	  if (!parseDigits(maxDigits)) {
++		errorMessage()
++		return undefined
++	  }
++	}
++	if (maxDigits) {
++	  parseJsonNumber.position = pos
++	  return BigInt(numStr)
++	}
++	if (s[pos] === ".") {
++	  numStr += "."
++	  pos++
++	  if (!parseDigits()) {
++		errorMessage()
++		return undefined
++	  }
++	}
++	if (((c = s[pos]), c === "e" || c === "E")) {
++	  numStr += "e"
++	  pos++
++	  if (((c = s[pos]), c === "+" || c === "-")) {
++		numStr += c
++		pos++
++	  }
++	  if (!parseDigits()) {
++		errorMessage()
++		return undefined
++	  }
++	}
++	parseJsonBigInt.position = pos
++	return BigInt(numStr)
++  
++	function parseDigits(maxLen?: number): boolean {
++	  let digit = false
++	  while (((c = s[pos]), c >= "0" && c <= "9" && (maxLen === undefined || maxLen-- > 0))) {
++		digit = true
++		numStr += c
++		pos++
++	  }
++	  return digit
++	}
++  
++	function errorMessage(): void {
++	  parseJsonBigInt.position = pos
++	  parseJsonBigInt.message = pos < s.length ? `unexpected token ${s[pos]}` : "unexpected end"
++	}
++  }
++  
++  parseJsonBigInt.message = undefined as string | undefined
++  parseJsonBigInt.position = 0 as number
++  parseJsonBigInt.code = 'require("ajv/dist/runtime/parseJson").parseJsonBigInt'
++  
++
+ const escapedChars: {[X in string]?: string} = {
+   b: "\b",
+   f: "\f",
+diff --git a/node_modules/ajv/lib/vocabularies/jtd/type.ts b/node_modules/ajv/lib/vocabularies/jtd/type.ts
+index 1727430..364dda4 100644
+--- a/node_modules/ajv/lib/vocabularies/jtd/type.ts
++++ b/node_modules/ajv/lib/vocabularies/jtd/type.ts
+@@ -53,6 +53,9 @@ const def: CodeKeywordDefinition = {
+         cond = timestampCode(cxt)
+         break
+       }
++	  case "bigint":
++        cond = _`typeof ${data} == "bigint" || typeof ${data} == "string"`
++        break
+       case "float32":
+       case "float64":
+         cond = _`typeof ${data} == "number"`
