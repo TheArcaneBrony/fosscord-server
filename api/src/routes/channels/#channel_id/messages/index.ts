@@ -165,7 +165,7 @@ router.post(
 		if (req.file) {
 			try {
 				const file = await uploadFile(`/attachments/${req.params.channel_id}`, req.file);
-				attachments.push({ ...file, proxy_url: file.url });
+				attachments.push({ ...file, proxy_url: file.url as string });
 			} catch (error) {
 				return res.status(400).json(error);
 			}
